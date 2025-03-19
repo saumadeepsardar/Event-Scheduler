@@ -10,23 +10,25 @@
   <nav class="navbar">
     <div class="container">
       <a href="index.html" class="logo">Event Scheduler</a>
-      <div class="nav-links">
+      <div class="nav-links" id="navLinks">
         <a href="index.html">Dashboard</a>
-        <a href="#">Profile</a>
+        <a href="#" id="profileLink">Profile</a>
+        <a href="#" id="logoutLink" style="display: none;">Logout</a>
+        <a href="login.html" id="loginLink">Login</a>
       </div>
     </div>
   </nav>
 
   <div class="container">
-    <div class="event-details" id="eventDetails">
-      <!-- Event details will be populated by JS -->
-    </div>
+    <div class="event-details" id="eventDetails"></div>
   </div>
 
   <script src="script.js"></script>
   <script>
-    // Load event details on page load
-    document.addEventListener('DOMContentLoaded', loadEventDetails);
+    document.addEventListener('DOMContentLoaded', () => {
+      checkAuth();
+      loadEventDetails();
+    });
   </script>
 </body>
 </html>
