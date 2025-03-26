@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Scheduler - Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <a href="index.html" class="logo">Event Scheduler</a>
+      <button class="menu-toggle" aria-label="Toggle menu">☰</button>
+      <div class="nav-links" id="navLinks">
+        <a href="index.html">Dashboard</a>
+        <a href="profile.html" id="profileLink">Profile</a>
+        <a href="create-event.html" id="createEventLink" style="display: none;">Create Event</a>
+        <a href="#" id="logoutLink" style="display: none;">Logout</a>
+        <a href="login.html" id="loginLink">Login</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <h1 class="title">Upcoming Events</h1>
+    <input type="text" id="search" placeholder="Search events..." class="search-bar" aria-label="Search events">
+    <div class="filters">
+      <select id="dateFilter" aria-label="Filter by date">
+        <option value="">All Dates</option>
+        <option value="thisWeek">This Week</option>
+        <option value="thisMonth">This Month</option>
+      </select>
+      <select id="categoryFilter" aria-label="Filter by category">
+        <option value="">All Categories</option>
+        <option value="Tech">Tech</option>
+        <option value="Career">Career</option>
+      </select>
+    </div>
+
+    <div class="event-grid" id="eventGrid"></div>
+    <div id="calendar" class="calendar"></div>
+
+    <h2 class="title">Analytics</h2>
+    <canvas id="analyticsChart" class="chart"></canvas>
+  </div>
+
+  <div class="notification" id="notification" style="display: none;"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <script src="script.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      updateNav();
+      loadDashboard();
+      setupCalendar();
+      setupAnalytics();
+    });
+  </script>
+</body>
+</html>
