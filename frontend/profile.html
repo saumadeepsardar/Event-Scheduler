@@ -32,6 +32,21 @@
         <button type="submit" class="auth-btn">Save Changes</button>
       </form>
     </div>
+
+    <!-- Admin Section to Add Users -->
+    <div class="auth-form" id="adminSection" style="display: none;">
+      <h1 class="title">Add Organizer/Admin</h1>
+      <form id="addUserForm">
+        <input type="text" id="newUserName" placeholder="Full Name" class="input-field" required>
+        <input type="email" id="newUserEmail" placeholder="Email" class="input-field" required>
+        <input type="password" id="newUserPassword" placeholder="Password" class="input-field" required>
+        <select id="newUserRole" class="input-field" required>
+          <option value="organizer">Organizer</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button type="submit" class="auth-btn">Add User</button>
+      </form>
+    </div>
   </div>
 
   <div class="notification" id="notification" style="display: none;"></div>

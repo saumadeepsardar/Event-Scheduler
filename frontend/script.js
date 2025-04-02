@@ -54,30 +54,38 @@ function handleLogout() {
   localStorage.removeItem('userName');
   localStorage.removeItem('userRole');
   updateNav();
-  window.location.href = 'index.html'; // Stay on site after logout
+  window.location.href = 'index.html';
 }
 
-// Navigation Updates (No Auth Check for General Access)
+function checkAuth() {
+  const token = localStorage.getItem('token');
+  if (!token && (window.location.pathname.includes('profile.html') || window.location.pathname.includes('create-event.html'))) {
+    window.location.href = 'login.html';
+  }
+  updateNav();
+}
+
 function updateNav() {
   const token = localStorage.getItem('token');
   const loginLink = document.getElementById('loginLink');
   const logoutLink = document.getElementById('logoutLink');
   const profileLink = document.getElementById('profileLink');
   const createEventLink = document.getElementById('createEventLink');
+  const userRole = localStorage.getItem('userRole');
 
   if (token) {
     loginLink.style.display = 'none';
     logoutLink.style.display = 'inline';
-    createEventLink.style.display = localStorage.getItem('userRole') === 'organizer' ? 'inline' : 'none';
     profileLink.textContent = `Welcome, ${localStorage.getItem('userName')}`;
     profileLink.href = 'profile.html';
+    createEventLink.style.display = (userRole === 'organizer' || userRole === 'admin') ? 'inline' : 'none';
     logoutLink.addEventListener('click', handleLogout);
   } else {
     loginLink.style.display = 'inline';
     logoutLink.style.display = 'none';
-    createEventLink.style.display = 'none';
     profileLink.textContent = 'Profile';
-    profileLink.href = 'login.html'; // Prompt login if not authenticated
+    profileLink.href = 'login.html';
+    createEventLink.style.display = 'none';
   }
 
   const menuToggle = document.querySelector('.menu-toggle');
@@ -85,7 +93,7 @@ function updateNav() {
   menuToggle.addEventListener('click', () => navLinks.classList.toggle('active'));
 }
 
-// Dashboard Functions (Public Access)
+// Dashboard Functions
 async function loadDashboard() {
   const eventGrid = document.getElementById('eventGrid');
   const searchInput = document.getElementById('search');
@@ -147,7 +155,7 @@ function setupCalendar() {
 
 function setupAnalytics() {
   const token = localStorage.getItem('token');
-  if (!token || localStorage.getItem('userRole') !== 'organizer') return;
+  if (!token || (localStorage.getItem('userRole') !== 'organizer' && localStorage.getItem('userRole') !== 'admin')) return;
 
   fetch('http://localhost:5000/api/v1/analytics/attendance', {
     headers: { 'Authorization': `Bearer ${token}` }
@@ -170,7 +178,7 @@ function setupAnalytics() {
     });
 }
 
-// Event Details Functions (Public Access with Login Prompt for RSVP)
+// Event Details Functions
 async function loadEventDetails() {
   const eventDetails = document.getElementById('eventDetails');
   const urlParams = new URLSearchParams(window.location.search);
@@ -287,7 +295,7 @@ async function loadEventDetails() {
   });
 }
 
-// Profile Functions (Protected)
+// Profile Functions
 async function loadProfile() {
   const token = localStorage.getItem('token');
   if (!token) {
@@ -327,9 +335,48 @@ async function loadProfile() {
       alert('Profile update failed!');
     }
   });
+
+  // Admin-specific functionality to add organizers/admins
+  if (localStorage.getItem('userRole') === 'admin') {
+    document.getElementById('adminSection').style.display = 'block';
+    document.getElementById('addUserForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const name = document.getElementById('newUserName').value;
+      const email = document.getElementById('newUserEmail').value;
+      const password = document.getElementById('newUserPassword').value;
+      const role = document.getElementById('newUserRole').value;
+
+      if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
+        alert('Invalid email format!');
+        return;
+      }
+      if (password.length < 6) {
+        alert('Password must be at least 6 characters!');
+        return;
+      }
+
+      const response = await fetch('http://localhost:5000/api/v1/admin/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name, email, password, role })
+      });
+
+      if (response.ok) {
+        showNotification('User added successfully!');
+        document.getElementById('addUserForm').reset();
+      } else {
+        alert('Failed to add user!');
+      }
+    });
+  } else {
+    document.getElementById('adminSection').style.display = 'none';
+  }
 }
 
-// Event Creation (Protected)
+// Create Event Function
 async function handleCreateEvent(event) {
   event.preventDefault();
   const token = localStorage.getItem('token');
