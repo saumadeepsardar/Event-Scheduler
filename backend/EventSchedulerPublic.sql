@@ -1,4 +1,3 @@
--- Create Database
 CREATE DATABASE EventSchedulerPublic;
 USE EventSchedulerPublic;
 
@@ -25,7 +24,9 @@ CREATE TABLE Events (
     organizer_id INT,
     recurrence VARCHAR(50),
     check_in_code VARCHAR(50),
-    FOREIGN KEY (organizer_id) REFERENCES Users(user_id) ON DELETE SET NULL
+    FOREIGN KEY (organizer_id) REFERENCES Users(user_id) ON DELETE SET NULL,
+    INDEX idx_date_time (date_time),
+    INDEX idx_category (category)
 );
 
 -- Event_RSVPs Table
@@ -36,7 +37,7 @@ CREATE TABLE Event_RSVPs (
     rsvp_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (event_id) REFERENCES Events(event_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE,
-    UNIQUE (event_id, user_id)
+    UNIQUE KEY unique_rsvp (event_id, user_id)
 );
 
 -- Attendance Table
@@ -47,7 +48,7 @@ CREATE TABLE Attendance (
     check_in_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (event_id) REFERENCES Events(event_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE,
-    UNIQUE (event_id, user_id)
+    UNIQUE KEY unique_attendance (event_id, user_id)
 );
 
 -- Feedback Table
@@ -60,22 +61,53 @@ CREATE TABLE Feedback (
     submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (event_id) REFERENCES Events(event_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE,
-    UNIQUE (event_id, user_id)
+    UNIQUE KEY unique_feedback (event_id, user_id)
 );
 
--- Waitlist Table
+-- Waitlist Table (Updated)
 CREATE TABLE Waitlist (
     waitlist_id INT AUTO_INCREMENT PRIMARY KEY,
     event_id INT,
     user_id INT,
     added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    position INT NOT NULL,
+    position INT NOT NULL AUTO_INCREMENT, -- Position in queue, auto-incremented per event
     FOREIGN KEY (event_id) REFERENCES Events(event_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE,
-    UNIQUE (event_id, user_id)
-);
+    UNIQUE KEY unique_waitlist (event_id, user_id),
+    INDEX idx_event_position (event_id, position) -- For efficient retrieval of first in line
+) AUTO_INCREMENT = 1;
 
--- Indexes
-CREATE INDEX idx_date_time ON Events(date_time);
-CREATE INDEX idx_category ON Events(category);
-CREATE INDEX idx_user_id ON Event_RSVPs(user_id);
+-- Trigger to Move Waitlist User to RSVP on Unjoin
+DELIMITER //
+CREATE TRIGGER after_rsvp_delete
+AFTER DELETE ON Event_RSVPs
+FOR EACH ROW
+BEGIN
+    DECLARE next_user_id INT;
+    DECLARE event_capacity INT;
+    DECLARE current_rsvp_count INT;
+
+    -- Get event capacity and current RSVP count
+    SELECT max_capacity INTO event_capacity FROM Events WHERE event_id = OLD.event_id;
+    SELECT COUNT(*) INTO current_rsvp_count FROM Event_RSVPs WHERE event_id = OLD.event_id;
+
+    -- If there's space after deletion
+    IF current_rsvp_count < event_capacity THEN
+        -- Get the first user from waitlist
+        SELECT user_id INTO next_user_id
+        FROM Waitlist
+        WHERE event_id = OLD.event_id
+        ORDER BY position ASC
+        LIMIT 1;
+
+        -- If there's a user in waitlist
+        IF next_user_id IS NOT NULL THEN
+            -- Add them to RSVP
+            INSERT INTO Event_RSVPs (event_id, user_id)
+            VALUES (OLD.event_id, next_user_id);
+            -- Remove them from waitlist
+            DELETE FROM Waitlist WHERE event_id = OLD.event_id AND user_id = next_user_id;
+        END IF;
+    END IF;
+END//
+DELIMITER ;

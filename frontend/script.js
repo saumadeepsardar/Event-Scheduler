@@ -6,11 +6,11 @@ async function handleSignup(event) {
   const password = document.getElementById('signupPassword').value;
 
   if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
-    alert('Invalid email format!');
+    showNotification('Invalid email format!');
     return;
   }
   if (password.length < 6) {
-    alert('Password must be at least 6 characters!');
+    showNotification('Password must be at least 6 characters!');
     return;
   }
 
@@ -23,7 +23,8 @@ async function handleSignup(event) {
   if (response.ok) {
     window.location.href = 'login.html';
   } else {
-    alert('Signup failed!');
+    const data = await response.json();
+    showNotification(data.error || 'Signup failed!'); // Display specific error from server
   }
 }
 
@@ -45,7 +46,7 @@ async function handleLogin(event) {
     localStorage.setItem('userRole', data.role);
     window.location.href = 'index.html';
   } else {
-    alert(data.error);
+    showNotification(data.error || 'Login failed!'); // Display specific error from server
   }
 }
 
@@ -347,11 +348,11 @@ async function loadProfile() {
       const role = document.getElementById('newUserRole').value;
 
       if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
-        alert('Invalid email format!');
+        showNotification('Invalid email format!');
         return;
       }
       if (password.length < 6) {
-        alert('Password must be at least 6 characters!');
+        showNotification('Password must be at least 6 characters!');
         return;
       }
 
@@ -368,7 +369,8 @@ async function loadProfile() {
         showNotification('User added successfully!');
         document.getElementById('addUserForm').reset();
       } else {
-        alert('Failed to add user!');
+        const data = await response.json();
+        showNotification(data.error || 'Failed to add user!');
       }
     });
   } else {

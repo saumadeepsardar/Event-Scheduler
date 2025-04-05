@@ -27,6 +27,12 @@ function authenticateToken(req, res, next) {
 // Register (Public)
 app.post('/api/v1/register', async (req, res) => {
   const { name, email, password } = req.body;
+
+  // Validate input
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'Name, email, and password are required' });
+  }
+
   const password_hash = await bcrypt.hash(password, 10);
 
   try {
@@ -36,18 +42,34 @@ app.post('/api/v1/register', async (req, res) => {
     );
     res.status(201).json({ user_id: result.insertId });
   } catch (err) {
-    res.status(400).json({ error: 'Email already exists' });
+    if (err.code === 'ER_DUP_ENTRY') {
+      res.status(400).json({ error: 'Email already exists' });
+    } else {
+      res.status(500).json({ error: 'Server error during signup' });
+    }
   }
 });
 
 // Login (Public)
 app.post('/api/v1/login', async (req, res) => {
   const { email, password } = req.body;
+
+  // Validate input
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
   const [rows] = await db.execute('SELECT * FROM Users WHERE email = ?', [email]);
   const user = rows[0];
-  if (!user || !(await bcrypt.compare(password, user.password_hash))) {
-    return res.status(401).json({ error: 'Invalid credentials' });
+
+  if (!user) {
+    return res.status(401).json({ error: 'User not found' });
   }
+
+  if (!(await bcrypt.compare(password, user.password_hash))) {
+    return res.status(401).json({ error: 'Incorrect password' });
+  }
+
   const token = jwt.sign({ user_id: user.user_id, role: user.role }, SECRET_KEY);
   res.json({ token, name: user.name, role: user.role });
 });
@@ -57,6 +79,9 @@ app.post('/api/v1/admin/users', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden - Admin only' });
 
   const { name, email, password, role } = req.body;
+  if (!name || !email || !password || !role) {
+    return res.status(400).json({ error: 'Name, email, password, and role are required' });
+  }
   if (!['organizer', 'admin'].includes(role)) {
     return res.status(400).json({ error: 'Invalid role - must be organizer or admin' });
   }
@@ -70,7 +95,11 @@ app.post('/api/v1/admin/users', authenticateToken, async (req, res) => {
     );
     res.status(201).json({ user_id: result.insertId, message: 'User added successfully' });
   } catch (err) {
-    res.status(400).json({ error: 'Email already exists or invalid data' });
+    if (err.code === 'ER_DUP_ENTRY') {
+      res.status(400).json({ error: 'Email already exists' });
+    } else {
+      res.status(500).json({ error: 'Server error during user creation' });
+    }
   }
 });
 

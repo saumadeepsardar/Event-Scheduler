@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Event Scheduler - Event Details</title>
   <link rel="stylesheet" href="styles.css">
+  <style>
+    .full-message { color: red; font-weight: bold; }
+    .waitlist-btn { margin-left: 10px; }
+    #waitlistDisplay { margin-top: 20px; }
+  </style>
 </head>
 <body>
   <nav class="navbar">
@@ -22,20 +27,24 @@
   </nav>
 
   <div class="container">
-    <div class="event-details" id="eventDetails"></div>
-    <div class="feedback-form" id="feedbackForm" style="display: none;">
-      <h2>Submit Feedback</h2>
-      <form id="feedbackSubmit">
-        <label for="rating">Rating (1-5):</label>
-        <input type="number" id="rating" min="1" max="5" required>
-        <textarea id="comments" placeholder="Comments" aria-label="Feedback comments"></textarea>
-        <button type="submit" class="auth-btn">Submit</button>
-      </form>
-    </div>
-    <div class="check-in" id="checkIn" style="display: none;">
-      <input type="text" id="checkInCode" placeholder="Enter Check-In Code" aria-label="Check-in code">
+    <div id="eventDetails"></div>
+    <div id="checkIn" style="display: none;">
+      <h2>Check-In</h2>
+      <input type="text" id="checkInCode" placeholder="Enter Check-In Code" class="input-field">
       <button id="checkInBtn" class="auth-btn">Check In</button>
     </div>
+    <form id="feedbackForm" style="display: none;">
+      <h2>Feedback</h2>
+      <select id="rating" class="input-field" required>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+      </select>
+      <textarea id="comments" placeholder="Comments" class="input-field"></textarea>
+      <button type="submit" id="feedbackSubmit" class="auth-btn">Submit Feedback</button>
+    </form>
   </div>
 
   <div class="notification" id="notification" style="display: none;"></div>
@@ -43,7 +52,7 @@
   <script src="script.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      updateNav();
+      checkAuth();
       loadEventDetails();
     });
   </script>
