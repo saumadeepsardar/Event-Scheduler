@@ -28,7 +28,6 @@ function authenticateToken(req, res, next) {
 app.post('/api/v1/register', async (req, res) => {
   const { name, email, password } = req.body;
 
-  // Validate input
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Name, email, and password are required' });
   }
@@ -54,7 +53,6 @@ app.post('/api/v1/register', async (req, res) => {
 app.post('/api/v1/login', async (req, res) => {
   const { email, password } = req.body;
 
-  // Validate input
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
@@ -112,6 +110,12 @@ app.get('/api/v1/users/me', authenticateToken, async (req, res) => {
 // Update User Profile (Protected)
 app.put('/api/v1/users/me', authenticateToken, async (req, res) => {
   const { name, major, year } = req.body;
+
+  // Prevent modification of the default admin's role or critical fields
+  if (req.user.user_id === 1) {
+    return res.status(403).json({ error: 'Cannot modify the default admin account via this endpoint' });
+  }
+
   await db.execute(
     'UPDATE Users SET name = ?, major = ?, year = ? WHERE user_id = ?',
     [name, major || null, year || null, req.user.user_id]
@@ -119,12 +123,31 @@ app.put('/api/v1/users/me', authenticateToken, async (req, res) => {
   res.status(200).json({ message: 'Profile updated' });
 });
 
+// Delete User (Protected, Admin Only) - New Endpoint
+app.delete('/api/v1/users/:id', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden - Admin only' });
+
+  const userIdToDelete = parseInt(req.params.id);
+
+  // Prevent deletion of the default admin account
+  if (userIdToDelete === 1) {
+    return res.status(403).json({ error: 'Cannot delete the default admin account' });
+  }
+
+  const [result] = await db.execute('DELETE FROM Users WHERE user_id = ?', [userIdToDelete]);
+  if (result.affectedRows === 0) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  res.status(200).json({ message: 'User deleted successfully' });
+});
+
 // Create Event (Protected, Organizer or Admin Only)
 app.post('/api/v1/events', authenticateToken, async (req, res) => {
   if (req.user.role !== 'organizer' && req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
 
   const { title, description, date_time, location, category, max_capacity, recurrence } = req.body;
-  const check_in_code = Math.random().toString(36).substring(2, 15); // Random code
+  const check_in_code = Math.random().toString(36).substring(2, 15);
 
   const [result] = await db.execute(
     'INSERT INTO Events (title, description, date_time, location, category, max_capacity, organizer_id, recurrence, check_in_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -171,10 +194,52 @@ app.post('/api/v1/events/:id/rsvp', authenticateToken, async (req, res) => {
   }
 });
 
+// Unjoin Event (Protected)
+app.delete('/api/v1/events/:id/rsvp', authenticateToken, async (req, res) => {
+  const eventId = req.params.id;
+  const userId = req.user.user_id;
+
+  const [rows] = await db.execute('DELETE FROM Event_RSVPs WHERE event_id = ? AND user_id = ?', [eventId, userId]);
+  if (rows.affectedRows === 0) return res.status(400).json({ error: 'Not RSVPed to this event' });
+
+  res.status(200).json({ message: 'Unjoined successfully' });
+});
+
 // Check RSVP Status (Protected)
 app.get('/api/v1/events/:id/rsvp', authenticateToken, async (req, res) => {
   const [rows] = await db.execute('SELECT * FROM Event_RSVPs WHERE event_id = ? AND user_id = ?', [req.params.id, req.user.user_id]);
   res.json({ hasRSVPd: rows.length > 0 });
+});
+
+// Join Waitlist (Protected)
+app.post('/api/v1/events/:id/waitlist', authenticateToken, async (req, res) => {
+  const eventId = req.params.id;
+  const userId = req.user.user_id;
+
+  const [eventRows] = await db.execute('SELECT max_capacity, (SELECT COUNT(*) FROM Event_RSVPs WHERE event_id = ?) as rsvp_count FROM Events WHERE event_id = ?', [eventId, eventId]);
+  if (eventRows[0].rsvp_count < eventRows[0].max_capacity) return res.status(400).json({ error: 'Event is not full yet' });
+
+  try {
+    const [positionRows] = await db.execute('SELECT COALESCE(MAX(position), 0) + 1 as next_position FROM Waitlist WHERE event_id = ?', [eventId]);
+    const nextPosition = positionRows[0].next_position;
+
+    await db.execute('INSERT INTO Waitlist (event_id, user_id, position) VALUES (?, ?, ?)', [eventId, userId, nextPosition]);
+    res.status(201).json({ message: 'Added to waitlist', position: nextPosition });
+  } catch (err) {
+    res.status(400).json({ error: 'Already on waitlist' });
+  }
+});
+
+// View Waitlist (Protected)
+app.get('/api/v1/events/:id/waitlist', authenticateToken, async (req, res) => {
+  const [rows] = await db.execute(`
+    SELECT w.position, u.name
+    FROM Waitlist w
+    JOIN Users u ON w.user_id = u.user_id
+    WHERE w.event_id = ?
+    ORDER BY w.position ASC
+  `, [req.params.id]);
+  res.json(rows);
 });
 
 // Check-In to Event (Protected)
