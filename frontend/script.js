@@ -24,7 +24,7 @@ async function handleSignup(event) {
     window.location.href = 'login.html';
   } else {
     const data = await response.json();
-    showNotification(data.error || 'Signup failed!'); // Display specific error from server
+    showNotification(data.error || 'Signup failed!');
   }
 }
 
@@ -46,7 +46,7 @@ async function handleLogin(event) {
     localStorage.setItem('userRole', data.role);
     window.location.href = 'index.html';
   } else {
-    showNotification(data.error || 'Login failed!'); // Display specific error from server
+    showNotification(data.error || 'Login failed!');
   }
 }
 
@@ -196,6 +196,7 @@ async function loadEventDetails() {
   const token = localStorage.getItem('token');
   let hasRSVPd = false;
   let hasAttended = false;
+  let isFull = event.rsvp_count >= event.max_capacity;
 
   if (token) {
     const rsvpResponse = await fetch(`http://localhost:5000/api/v1/events/${eventId}/rsvp`, {
@@ -216,34 +217,94 @@ async function loadEventDetails() {
     <p>Location: ${event.location}</p>
     <p>Organizer: ${event.organizer || 'Unknown'}</p>
     <p>RSVPs: ${event.rsvp_count} / ${event.max_capacity}</p>
-    <button class="rsvp-btn" id="rsvpBtn">${hasRSVPd ? 'Joined' : event.rsvp_count >= event.max_capacity ? 'Full' : 'Join'}</button>
+    ${isFull && !hasRSVPd ? '<p class="full-message">Event Full</p>' : ''}
+    <button class="rsvp-btn" id="rsvpBtn">${hasRSVPd ? 'Unjoin' : isFull ? 'Join Waitlist' : 'Join'}</button>
+    ${isFull ? '<button class="waitlist-btn" id="viewWaitlistBtn">View Waitlist</button>' : ''}
   `;
 
   const rsvpBtn = document.getElementById('rsvpBtn');
   if (hasRSVPd) rsvpBtn.classList.add('joined');
-  if (event.rsvp_count >= event.max_capacity) rsvpBtn.classList.add('full');
+  if (isFull && !hasRSVPd) rsvpBtn.classList.add('full');
 
   rsvpBtn.addEventListener('click', async () => {
     if (!token) {
       window.location.href = 'login.html';
       return;
     }
-    if (!hasRSVPd && event.rsvp_count < event.max_capacity) {
+
+    if (hasRSVPd) {
+      // Unjoin the event
+      const unjoinResponse = await fetch(`http://localhost:5000/api/v1/events/${eventId}/rsvp`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (unjoinResponse.ok) {
+        rsvpBtn.textContent = 'Join';
+        rsvpBtn.classList.remove('joined');
+        event.rsvp_count--;
+        eventDetails.querySelector('p:nth-child(6)').textContent = `RSVPs: ${event.rsvp_count} / ${event.max_capacity}`;
+        showNotification('You have unjoined the event!');
+        isFull = event.rsvp_count >= event.max_capacity;
+        if (!isFull) {
+          document.querySelector('.full-message')?.remove();
+          document.getElementById('viewWaitlistBtn')?.remove();
+        }
+      } else {
+        showNotification('Failed to unjoin event!');
+      }
+    } else if (isFull) {
+      // Join waitlist
+      const waitlistResponse = await fetch(`http://localhost:5000/api/v1/events/${eventId}/waitlist`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (waitlistResponse.ok) {
+        showNotification('You have been added to the waitlist!');
+      } else {
+        showNotification('Failed to join waitlist!');
+      }
+    } else {
+      // Join the event
       const rsvpResponse = await fetch(`http://localhost:5000/api/v1/events/${eventId}/rsvp`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (rsvpResponse.ok) {
-        rsvpBtn.textContent = 'Joined';
+        rsvpBtn.textContent = 'Unjoin';
         rsvpBtn.classList.add('joined');
         event.rsvp_count++;
         eventDetails.querySelector('p:nth-child(6)').textContent = `RSVPs: ${event.rsvp_count} / ${event.max_capacity}`;
         showNotification('RSVP confirmed!');
+        isFull = event.rsvp_count >= event.max_capacity;
+        if (isFull) {
+          eventDetails.insertAdjacentHTML('beforeend', '<p class="full-message">Event Full</p><button class="waitlist-btn" id="viewWaitlistBtn">View Waitlist</button>');
+          document.getElementById('viewWaitlistBtn').addEventListener('click', viewWaitlist);
+        }
       } else {
-        alert('RSVP failed or event is full!');
+        showNotification('RSVP failed or event is full!');
       }
     }
   });
+
+  const viewWaitlistBtn = document.getElementById('viewWaitlistBtn');
+  if (viewWaitlistBtn) {
+    viewWaitlistBtn.addEventListener('click', viewWaitlist);
+  }
+
+  async function viewWaitlist() {
+    const response = await fetch(`http://localhost:5000/api/v1/events/${eventId}/waitlist`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const waitlist = await response.json();
+    if (response.ok) {
+      const waitlistDiv = document.createElement('div');
+      waitlistDiv.id = 'waitlistDisplay';
+      waitlistDiv.innerHTML = `<h3>Waitlist</h3><ul>${waitlist.map(w => `<li>${w.name} (Position: ${w.position})</li>`).join('')}</ul>`;
+      eventDetails.appendChild(waitlistDiv);
+    } else {
+      showNotification('Failed to load waitlist!');
+    }
+  }
 
   const feedbackForm = document.getElementById('feedbackForm');
   const checkInSection = document.getElementById('checkIn');
@@ -273,7 +334,7 @@ async function loadEventDetails() {
       showNotification('Feedback submitted!');
       feedbackForm.style.display = 'none';
     } else {
-      alert('Feedback submission failed!');
+      showNotification('Feedback submission failed!');
     }
   });
 
@@ -291,7 +352,7 @@ async function loadEventDetails() {
       showNotification('Checked in successfully!');
       feedbackForm.style.display = 'block';
     } else {
-      alert('Invalid code or you must RSVP first!');
+      showNotification('Invalid code or you must RSVP first!');
     }
   });
 }
@@ -333,11 +394,10 @@ async function loadProfile() {
       localStorage.setItem('userName', name);
       updateNav();
     } else {
-      alert('Profile update failed!');
+      showNotification('Profile update failed!');
     }
   });
 
-  // Admin-specific functionality to add organizers/admins
   if (localStorage.getItem('userRole') === 'admin') {
     document.getElementById('adminSection').style.display = 'block';
     document.getElementById('addUserForm').addEventListener('submit', async e => {
@@ -398,7 +458,7 @@ async function handleCreateEvent(event) {
   };
 
   if (new Date(newEvent.date_time) < new Date()) {
-    alert('Event date cannot be in the past!');
+    showNotification('Event date cannot be in the past!');
     return;
   }
 
@@ -414,7 +474,7 @@ async function handleCreateEvent(event) {
     showNotification('Event created successfully!');
     window.location.href = 'index.html';
   } else {
-    alert('Event creation failed!');
+    showNotification('Event creation failed!');
   }
 }
 
