@@ -201,29 +201,6 @@ pdflatex project_documentation.tex
 ```
 Ensure `er_diagram.png` is in the same directory.
 
-## Displaying ER Diagram on Website
-To show `er_diagram.png` on the website:
-1. Copy `er_diagram.png` to `frontend/images/`.
-2. Add to `index.html` or `about.html`:
-   ```html
-   <div class="container">
-       <h2>Database Schema</h2>
-       <img src="images/er_diagram.png" alt="ER Diagram" style="max-width: 100%;">
-   </div>
-   ```
-3. Style in `styles.css`:
-   ```css
-   .container {
-       text-align: center;
-       margin: 20px;
-   }
-   img {
-       border: 1px solid #ccc;
-       padding: 10px;
-   }
-   ```
-4. Run `http-server -p 5000` and verify at `http://localhost:5000`.
-
 ## Usage
 - Register/login at `http://localhost:5000`.
 - Create/view events.
